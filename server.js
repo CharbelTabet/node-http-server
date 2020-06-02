@@ -1,23 +1,29 @@
 const http = require('http');
 const path = require('path');
+const url = require('url');
 const fs = require('fs');
+const qs = require('querystring');
 
-// params
-var dir = 'public';
+// Params
+var hostname = 'localhost';
+var pagesdir = 'public';
 
-// http server
+// Server
 const server = http.createServer((req, res) => {
-    // Get filePath and fileName out of req.url, serving index.html if the url is empty
-    filePath = path.join(__dirname, dir, req.url == '/' ? 'index.html' : req.url);
-
-    // Get fileExt out of filePath
-    fileExt = path.extname(filePath);
+    // Get filePath
+    filePath = path.join(__dirname, pagesdir, req.url == '/' ? 'index.html' : url.parse(req.url).pathname);
     
-    // Setting default contentType to 'text/html'
-    let contentType = 'text/html';
+    // Serving index.html if req.url is empty
 
-    // Setting contentType in accordance to filePath
+    // Get fileExt
+    fileExt = path.extname(filePath);
+
+    // Set contentType according to fileExt
+    contentType = 'text/html';
     switch (fileExt) {
+        case '.html':
+            contentType = 'text/html';
+            break;
         case '.css':
             contentType = 'text/css';
             break;
@@ -32,36 +38,73 @@ const server = http.createServer((req, res) => {
             break;
     }
 
-    // Adding .html to filePath if contentType is 'text/html' and fileExt is empty
-    if (contentType == 'text/html' && fileExt == '') filePath += '.html';
+    // Set .html extension if contentType is 'text/html' and fileExt is empty
+    if (contentType === 'text/html' && fileExt === '') filePath += '.html';
 
-    // Getting fileName out of filePath
-    fileName = path.basename(filePath);
-
-    // Serving files in accordance to fileExt and filePath
+    // Reading file
     fs.readFile(filePath, (err, content) => {
-        process.stdout.write(`'${req.url}' | `)
-        if(err) {
-            if (err.code == 'ENOENT') {
-                console.log(`(404) did not find '${fileName}' at ${filePath}`);
-                res.write('404 not found');
+        if (err) {
+            if (err.code === 'ENOENT') {
+                // Error message
+                console.log(`[404] ${path.basename(filePath)} not found`);
+
+                // 404 page
+                res.writeHead(404, {'content-type': 'text/html'});
+                res.write('err 404 not found');
                 res.end();
             }
             else {
-                console.log(`(500)`)
-                res.write('err 500');
+                // Error message
+                console.log(`[500] server error`);
+
+                // 500 page
+                res.writeHead(500, {'content-type': 'text/html'});
+                res.write('err 500 server error');
                 res.end();
             }
         }
         else {
-            console.log(`(202) served '${fileName}' at ${filePath}`);
-            res.writeHead(200, {'content-type': contentType});
-            res.end(content);
+            switch (req.method) {
+                case 'GET':
+                    // Success message
+                    console.log(`[200] ${path.basename(filePath)} served, ${contentType}`);
+
+                    // Serving content
+                    res.writeHead(200, {'content-type': contentType});
+                    res.end(content, 'utf8');
+
+                    // Getting query string parameters
+                    let query = qs.parse(req.url, true).query;
+                    break;
+                
+                case 'POST':
+                    // Initializing body
+                    let body = '';
+
+                    // req listeners
+                    req.on('data', (data) => {
+                        body += data;
+                    })
+                    req.on('end', () => {
+                        console.log('body: ' + body);
+                    })
+
+                    // Getting post data
+                    let json = qs.parse(body);
+                    console.log('json: ' + json);
+
+                case 'PUT':
+                    // TODO
+                    break;
+                
+                case 'DELETE':
+                    // TODO
+                    break;
+            }
         }
     })
-    
 })
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => console.log(`Server running at port ${PORT}\n***************************`));
+server.listen(PORT, hostname, () => console.log(`Server running at ${PORT}...`));
